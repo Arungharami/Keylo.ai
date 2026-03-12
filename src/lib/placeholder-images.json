@@ -1,3 +1,34 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-mockup",
+      "description": "Premium AI chat interface on a mobile device",
+      "imageUrl": "https://picsum.photos/seed/keylo1/600/1200",
+      "imageHint": "mobile chat"
+    },
+    {
+      "id": "testimonial-1",
+      "description": "Portrait of a happy user",
+      "imageUrl": "https://picsum.photos/seed/user1/100/100",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "testimonial-2",
+      "description": "Portrait of a business professional",
+      "imageUrl": "https://picsum.photos/seed/user2/100/100",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "testimonial-3",
+      "description": "Portrait of a creative student",
+      "imageUrl": "https://picsum.photos/seed/user3/100/100",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "onboarding-welcome",
+      "description": "Abstract intelligent companion visual",
+      "imageUrl": "https://picsum.photos/seed/keylo-onboarding/800/600",
+      "imageHint": "abstract ai"
+    }
+  ]
 }
