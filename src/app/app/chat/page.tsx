@@ -1,20 +1,18 @@
 
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { AppSidebar } from "@/components/app/AppSidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { 
   Send, 
   Sparkles, 
-  Loader2, 
   User, 
   Heart, 
   BrainCircuit, 
   MessageCircle, 
-  AlertCircle,
-  X
+  AlertCircle
 } from "lucide-react"
 import { aiChatInteraction } from "@/ai/flows/ai-chat-interaction-flow"
 import { useToast } from "@/hooks/use-toast"
@@ -25,11 +23,10 @@ import {
   useDoc, 
   useCollection, 
   useMemoFirebase, 
-  setDocumentNonBlocking,
   addDocumentNonBlocking,
   updateDocumentNonBlocking
 } from "@/firebase"
-import { doc, collection, query, orderBy, serverTimestamp, getDoc } from "firebase/firestore"
+import { doc, collection, query, orderBy, serverTimestamp, limit } from "firebase/firestore"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import Link from "next/link"
 
@@ -49,12 +46,15 @@ export default function ChatPage() {
   const { user } = useUser()
   const db = useFirestore()
 
-  // Firestore Refs
-  const usageRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid, 'usage', 'stats') : null, [user])
-  const profileRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid, 'profile', 'info') : null, [user])
-  const memoryRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid, 'aiChatMemory', 'main') : null, [user])
-  const messagesCollectionRef = useMemoFirebase(() => user ? collection(db, 'users', user.uid, 'messages') : null, [user])
-  const messagesQuery = useMemoFirebase(() => messagesCollectionRef ? query(messagesCollectionRef, orderBy('timestamp', 'asc')) : null, [messagesCollectionRef])
+  // Firestore Refs stabilized with useMemoFirebase
+  const usageRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid, 'usage', 'stats') : null, [user, db])
+  const profileRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid, 'profile', 'info') : null, [user, db])
+  const memoryRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid, 'aiChatMemory', 'main') : null, [user, db])
+  const messagesCollectionRef = useMemoFirebase(() => user ? collection(db, 'users', user.uid, 'messages') : null, [user, db])
+  
+  const messagesQuery = useMemoFirebase(() => 
+    messagesCollectionRef ? query(messagesCollectionRef, orderBy('timestamp', 'asc'), limit(50)) : null
+  , [messagesCollectionRef])
 
   const { data: usage } = useDoc(usageRef)
   const { data: profile } = useDoc(profileRef)
@@ -62,22 +62,16 @@ export default function ChatPage() {
   const { data: messages } = useCollection<Message>(messagesQuery)
 
   const isGuest = user?.isAnonymous || false
-  const messageLimit = isGuest ? 5 : 15 // Standard free limit
+  const messageLimit = isGuest ? 5 : 15 
   const currentCount = usage?.messageCountToday || 0
   const isPremium = usage?.isPremiumUser || false
   const limitReached = !isPremium && currentCount >= messageLimit
 
-  const scrollToBottom = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: "smooth"
-      })
-    }
-  }
-
+  // Smooth scroll logic
   useEffect(() => {
-    scrollToBottom()
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
   }, [messages, isTyping])
 
   const handleSend = async (e?: React.FormEvent) => {
@@ -93,7 +87,7 @@ export default function ChatPage() {
     setInput("")
     setIsTyping(true)
 
-    // 1. Save User Message to Firestore
+    // 1. Save User Message - Non-blocking for snappy UI
     if (messagesCollectionRef) {
       addDocumentNonBlocking(messagesCollectionRef, {
         role: 'user',
@@ -102,7 +96,7 @@ export default function ChatPage() {
       })
     }
 
-    // 2. Update Usage Count
+    // 2. Update Usage Count - Non-blocking
     if (usageRef) {
       updateDocumentNonBlocking(usageRef, {
         messageCountToday: currentCount + 1,
@@ -111,18 +105,18 @@ export default function ChatPage() {
     }
 
     try {
-      // 3. Get AI Response
+      // 3. AI Interaction - Must await result
       const { response, sentiment } = await aiChatInteraction({
         message: messageContent,
-        history: messages?.map(m => ({ role: m.role, content: m.content })) || [],
-        userName: profile?.displayName,
+        history: messages?.map(m => ({ role: m.role, content: m.content })).slice(-10) || [],
+        userName: profile?.displayName || "Friend",
         memory: {
-          facts: memory?.facts,
-          preferences: memory?.preferences
+          facts: memory?.facts || [],
+          preferences: memory?.preferences || []
         }
       })
 
-      // 4. Save AI Response to Firestore
+      // 4. Save AI Response
       if (messagesCollectionRef) {
         addDocumentNonBlocking(messagesCollectionRef, {
           role: 'model',
@@ -131,16 +125,19 @@ export default function ChatPage() {
         })
       }
 
-      // 5. Update Memory based on sentiment (Simple Logic for MVP)
+      // 5. Intelligence Update - Background memory enrichment
       if (sentiment.toLowerCase().includes('sad') && memoryRef) {
-        const updatedFacts = [...(memory?.facts || []), `User expressed sadness on ${new Date().toLocaleDateString()}`]
-        updateDocumentNonBlocking(memoryRef, { facts: updatedFacts.slice(-10), updatedAt: serverTimestamp() })
+        const updatedFacts = [...(memory?.facts || []), `User felt sad on ${new Date().toLocaleDateString()}`]
+        updateDocumentNonBlocking(memoryRef, { 
+          facts: updatedFacts.slice(-20), 
+          updatedAt: serverTimestamp() 
+        })
       }
 
     } catch (error) {
       toast({
-        title: "Oops! Keylo is sleepy.",
-        description: "I couldn't respond right now. Let's try again in a bit!",
+        title: "Keylo is momentary unavailable",
+        description: "I'm having a little trouble connecting. Let's try again in a moment.",
         variant: "destructive"
       })
     } finally {
@@ -153,7 +150,6 @@ export default function ChatPage() {
       <AppSidebar />
       
       <main className="flex-1 flex flex-col relative md:ml-72 overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(187,82,247,0.05),transparent)]">
-        {/* Top Bar */}
         <header className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-background/50 backdrop-blur-md sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl premium-gradient flex items-center justify-center text-white shadow-lg animate-breathe">
@@ -168,7 +164,7 @@ export default function ChatPage() {
           <div className="flex items-center gap-4">
             {!isPremium && (
               <div className="hidden sm:flex flex-col items-end">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Daily Progress</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Daily Usage</div>
                 <div className="text-[11px] font-black text-primary">{currentCount}/{messageLimit} Messages</div>
               </div>
             )}
@@ -180,8 +176,7 @@ export default function ChatPage() {
           </div>
         </header>
 
-        {/* Messages Area */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 scroll-smooth">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 scroll-smooth scrollbar-hide">
           {(!messages || messages.length === 0) && (
             <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
               <div className="w-24 h-24 rounded-[2.5rem] premium-gradient flex items-center justify-center text-white shadow-2xl animate-float">
@@ -190,7 +185,7 @@ export default function ChatPage() {
               <div className="space-y-3">
                 <h1 className="text-4xl font-headline font-bold tracking-tight">Hi! I'm <span className="text-gradient">Keylo.</span></h1>
                 <p className="text-muted-foreground text-lg leading-relaxed">
-                  I'm your intelligent, private companion. I'm here to listen, support, and brainstorm with you. How are you feeling today?
+                  I'm your intelligent, private companion. How can I support you today?
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
@@ -249,42 +244,40 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Input Area */}
         <div className="p-4 md:p-8 bg-gradient-to-t from-background via-background/95 to-transparent">
           <form onSubmit={handleSend} className="max-w-4xl mx-auto relative group">
             <Input 
-              placeholder="Tell Keylo everything..." 
+              placeholder="Message Keylo..." 
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="h-16 md:h-20 pl-8 pr-24 bg-card/80 border-white/10 focus:ring-primary focus:border-transparent rounded-[2.5rem] text-lg shadow-2xl transition-all backdrop-blur-xl placeholder:text-muted-foreground/50"
+              className="h-16 md:h-20 pl-8 pr-24 bg-card/80 border-white/10 focus:ring-primary rounded-[2.5rem] text-lg shadow-2xl transition-all backdrop-blur-xl"
             />
             <button 
               type="submit"
               disabled={!input.trim() || isTyping}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 rounded-2xl premium-gradient text-white flex items-center justify-center disabled:opacity-30 disabled:grayscale transition-all hover:scale-105 active:scale-95 shadow-2xl"
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 rounded-2xl premium-gradient text-white flex items-center justify-center disabled:opacity-30 transition-all hover:scale-105 active:scale-95 shadow-2xl"
             >
               <Send size={24} />
             </button>
           </form>
           <div className="flex justify-center mt-4">
             <p className="text-[10px] text-center text-muted-foreground uppercase tracking-[0.25em] font-bold flex items-center gap-2">
-              <AlertCircle size={10} /> Keylo is here for you. Stay safe.
+              <AlertCircle size={10} /> Keylo is here to listen. Stay safe.
             </p>
           </div>
         </div>
 
-        {/* Limit Reached Modal */}
         <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
           <DialogContent className="glass rounded-[2.5rem] border-white/10 max-w-sm p-8 text-center sm:rounded-[3rem]">
             <DialogHeader>
               <div className="w-20 h-20 rounded-3xl premium-gradient flex items-center justify-center text-white mx-auto mb-6 shadow-2xl animate-float">
                 <Sparkles size={40} />
               </div>
-              <DialogTitle className="text-3xl font-headline font-bold">Limit Reached!</DialogTitle>
+              <DialogTitle className="text-3xl font-headline font-bold">Limit Reached</DialogTitle>
               <DialogDescription className="text-muted-foreground text-lg py-4">
                 {isGuest 
                   ? "Enjoying our chat? Create an account to keep the conversation going!" 
-                  : "You've hit your daily limit. Unlock unlimited empathy with Premium!"}
+                  : "You've reached your daily limit. Go Premium for unlimited heart-to-hearts."}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex flex-col gap-3 sm:flex-col mt-4">

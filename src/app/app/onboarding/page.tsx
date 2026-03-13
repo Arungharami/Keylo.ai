@@ -4,7 +4,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Sparkles, ArrowRight, BrainCircuit, Heart, MessageCircle, Smile, Zap } from "lucide-react"
+import { Sparkles, ArrowRight, BrainCircuit, Heart, MessageCircle, Smile } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useUser, useFirestore, useMemoFirebase, setDocumentNonBlocking } from "@/firebase"
 import { doc, serverTimestamp } from "firebase/firestore"
@@ -48,16 +48,19 @@ export default function OnboardingPage() {
   const handleFinish = async () => {
     if (!user) return
 
+    // Senior optimization: Use non-blocking writes for better UX
     const profileRef = doc(db, 'users', user.uid, 'profile', 'info')
     const usageRef = doc(db, 'users', user.uid, 'usage', 'stats')
     const memoryRef = doc(db, 'users', user.uid, 'aiChatMemory', 'main')
 
-    // Initial setup
+    const style = selections[1] || "supportive"
+    const goal = selections[2] || "growth"
+
     setDocumentNonBlocking(profileRef, {
       userId: user.uid,
       onboardingCompleted: true,
-      preferredConversationStyle: selections[1],
-      interests: [selections[2]],
+      preferredConversationStyle: style,
+      interests: [goal],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true })
@@ -67,6 +70,9 @@ export default function OnboardingPage() {
       messageCountToday: 0,
       messageCountTotal: 0,
       isPremiumUser: false,
+      lastDailyResetAt: serverTimestamp(),
+      dailyMessageLimit: 15,
+      freeMessageLimitTotal: 100,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true })
@@ -74,11 +80,12 @@ export default function OnboardingPage() {
     setDocumentNonBlocking(memoryRef, {
       userId: user.uid,
       facts: [],
-      preferences: [selections[1]],
+      preferences: [style],
       summaries: [],
       updatedAt: serverTimestamp()
     }, { merge: true })
 
+    // Instantly transition for "snappy" feel
     router.push("/app/chat")
   }
 
@@ -91,7 +98,7 @@ export default function OnboardingPage() {
   }
 
   const handleSelect = (optionId: string) => {
-    setSelections({ ...selections, [currentStep]: optionId })
+    setSelections(prev => ({ ...prev, [currentStep]: optionId }))
     handleNext()
   }
 
@@ -101,7 +108,7 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/10 rounded-full blur-[150px] -z-10 animate-pulse" />
       
-      <div className="w-full max-w-2xl space-y-12 text-center">
+      <div className="w-full max-w-2xl space-y-12 text-center relative z-10">
         <div className="flex justify-center gap-3 mb-8">
           {steps.map((_, i) => (
             <div key={i} className={`h-2 w-16 rounded-full transition-all duration-500 ${i <= currentStep ? 'bg-primary shadow-[0_0_10px_rgba(187,82,247,0.5)]' : 'bg-muted'}`} />
@@ -114,7 +121,7 @@ export default function OnboardingPage() {
               <step.icon size={48} />
             </div>
           )}
-          <h1 className="text-4xl md:text-6xl font-headline font-black tracking-tight">{step.title}</h1>
+          <h1 className="text-4xl md:text-6xl font-headline font-black tracking-tight leading-tight">{step.title}</h1>
           <p className="text-xl md:text-2xl text-muted-foreground font-medium">{step.subtitle}</p>
         </div>
 

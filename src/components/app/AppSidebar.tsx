@@ -8,20 +8,18 @@ import {
   User, 
   CreditCard, 
   LogOut, 
-  Settings, 
   Sparkles,
   Trash2,
   Menu,
   X,
-  UserCircle,
   Gem
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { useUser, useFirestore, useDoc, useMemoFirebase, useAuth } from "@/firebase"
-import { doc, deleteDoc } from "firebase/firestore"
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, deleteDocumentNonBlocking } from "@/firebase"
+import { doc, collection, query, orderBy, limit } from "firebase/firestore"
 import { signOut } from "firebase/auth"
 
 export function AppSidebar() {
@@ -32,21 +30,16 @@ export function AppSidebar() {
   const auth = useAuth()
   const isGuest = user?.isAnonymous || false
 
+  // Memoized refs and queries for performance
   const usageRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid, 'usage', 'stats') : null, [user, db])
+  const conversationsRef = useMemoFirebase(() => user ? collection(db, 'users', user.uid, 'conversations') : null, [user, db])
+  const conversationsQuery = useMemoFirebase(() => 
+    conversationsRef ? query(conversationsRef, orderBy('updatedAt', 'desc'), limit(10)) : null
+  , [conversationsRef])
+
   const { data: usage } = useDoc(usageRef)
+  const { data: conversations } = useCollection(conversationsQuery)
   const isPremium = usage?.isPremiumUser || false
-
-  // Mock chat history - in a real app this would be a collection
-  const history = [
-    { id: "1", title: "Morning Reflection" },
-    { id: "2", title: "Creative Spark" },
-  ]
-
-  const navItems = [
-    { name: "My Chat", icon: MessageSquare, href: "/app/chat", premium: false },
-    { name: "Account", icon: User, href: "/app/account", premium: false },
-    { name: "Billing", icon: CreditCard, href: "/app/billing", premium: false },
-  ]
 
   const handleLogout = async () => {
     try {
@@ -56,6 +49,19 @@ export function AppSidebar() {
       console.error("Logout failed:", error)
     }
   }
+
+  const handleDeleteConversation = (id: string) => {
+    if (user) {
+      const convRef = doc(db, 'users', user.uid, 'conversations', id)
+      deleteDocumentNonBlocking(convRef)
+    }
+  }
+
+  const navItems = [
+    { name: "My Chat", icon: MessageSquare, href: "/app/chat" },
+    { name: "Account", icon: User, href: "/app/account" },
+    { name: "Billing", icon: CreditCard, href: "/app/billing" },
+  ]
 
   return (
     <>
@@ -86,32 +92,38 @@ export function AppSidebar() {
         </div>
 
         <div className="p-6">
-          <Button asChild className="w-full h-14 premium-gradient shadow-2xl font-bold gap-2 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all">
+          <Button asChild className="w-full h-14 premium-gradient shadow-2xl font-bold gap-2 rounded-2xl hover:scale-[1.02] transition-all">
             <Link href="/app/chat"><Plus size={20} strokeWidth={3} /> Let's Chat</Link>
           </Button>
         </div>
 
-        <div className="flex-grow overflow-y-auto px-4 py-4 space-y-8">
+        <div className="flex-grow overflow-y-auto px-4 py-4 space-y-8 scrollbar-hide">
           <div className="space-y-2">
             <h4 className="px-4 text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Past Sessions</h4>
-            {history.map((chat) => (
-              <Link 
-                key={chat.id} 
-                href={`/app/chat/${chat.id}`}
-                className={cn(
-                  "group flex items-center justify-between p-4 rounded-2xl transition-all duration-300",
-                  pathname.includes(chat.id) ? "bg-primary/10 text-primary" : "hover:bg-white/5 text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <MessageSquare size={18} className={pathname.includes(chat.id) ? "text-primary" : ""} />
-                  <span className="text-sm truncate font-bold">{chat.title}</span>
+            {conversations && conversations.length > 0 ? (
+              conversations.map((chat) => (
+                <div 
+                  key={chat.id} 
+                  className={cn(
+                    "group flex items-center justify-between p-4 rounded-2xl transition-all duration-300",
+                    pathname.includes(chat.id) ? "bg-primary/10 text-primary" : "hover:bg-white/5 text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Link href={`/app/chat/${chat.id}`} className="flex items-center gap-3 overflow-hidden flex-1">
+                    <MessageSquare size={18} className={pathname.includes(chat.id) ? "text-primary" : ""} />
+                    <span className="text-sm truncate font-bold">{chat.title || "New Chat"}</span>
+                  </Link>
+                  <button 
+                    onClick={() => handleDeleteConversation(chat.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-all"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
-                <button className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-all">
-                  <Trash2 size={16} />
-                </button>
-              </Link>
-            ))}
+              ))
+            ) : (
+              <div className="px-4 py-2 text-[11px] text-muted-foreground italic">No sessions yet</div>
+            )}
           </div>
         </div>
 
@@ -131,9 +143,9 @@ export function AppSidebar() {
             <div className="p-4 rounded-2xl bg-secondary/5 border border-secondary/10 mt-4">
               <div className="flex items-center gap-2 text-secondary mb-1">
                 <Gem size={14} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Premium Features</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">Premium Active</span>
               </div>
-              <p className="text-[10px] text-muted-foreground leading-tight">Long-term memory & Creative tools active.</p>
+              <p className="text-[10px] text-muted-foreground leading-tight">Advanced intelligence & memory enabled.</p>
             </div>
           )}
 
