@@ -10,24 +10,6 @@ service cloud.firestore {
      * from chat history to AI memory, is architecturally nested under the user's unique 
      * identity path. This ensures that authorization is tied directly to authentication 
      * state and path wildcards, providing a high degree of privacy and performance.
-     *
-     * DATA STRUCTURE:
-     * All private user data is located at /users/{userId}/.... This includes:
-     * - Profile details and preferences
-     * - Subscription status and usage metrics
-     * - Conversations and their constituent messages
-     * - AI-generated long-term memory and context
-     *
-     * KEY SECURITY DECISIONS:
-     * - Path-Based Authorization: We use the {userId} wildcard in the path to determine 
-     *   ownership. This avoids expensive 'get()' calls to check who owns a document.
-     * - Prototyping Flexibility: While ownership is strictly enforced, the specific 
-     *   schema (fields and types) is left flexible to allow for rapid UI/UX iteration.
-     * - Write Protection: 'if true' is NEVER used for write operations. Every create, 
-     *   update, or delete must be performed by the authenticated owner.
-     * - Analytics Segregation: App events are tracked in a top-level collection that 
-     *   allows for client-side creation (to track interactions) but prevents listing 
-     *   or modification by end-users.
      */
 
     // --- Global Helper Functions ---
@@ -52,13 +34,12 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && isImmutable('id');
+      allow create: if isOwner(userId) && (request.resource.data.id == userId || !('id' in request.resource.data));
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
 
       /**
        * Sub-documents for Profile, Usage, and Memory.
-       * Using wildcards {docId} to match documents within these subcollections (e.g., 'info', 'stats', 'main').
        */
       match /profile/{docId} {
         allow get, list: if isOwner(userId);
@@ -81,6 +62,20 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      /**
+       * Direct Messages Subcollection
+       * Used for the primary chat experience.
+       */
+      match /messages/{messageId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
+      }
+
+      /**
+       * Conversation-based hierarchy
+       */
       match /conversations/{conversationId} {
         allow get, list: if isOwner(userId);
         allow create: if isOwner(userId);
