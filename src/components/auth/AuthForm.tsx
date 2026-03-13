@@ -1,14 +1,15 @@
 
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Sparkles, Github, Chrome, Eye, EyeOff, Loader2, UserCircle } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
-import { useAuth } from "@/firebase"
+import { useAuth, useUser } from "@/firebase"
 import { initiateEmailSignIn, initiateEmailSignUp, initiateAnonymousSignIn } from "@/firebase/non-blocking-login"
 
 interface AuthFormProps {
@@ -22,18 +23,28 @@ export function AuthForm({ type }: AuthFormProps) {
   const [password, setPassword] = useState("")
   const { toast } = useToast()
   const auth = useAuth()
+  const { user, isUserLoading } = useUser()
+  const router = useRouter()
+
+  // Senior Pattern: Listen for auth state changes to trigger redirection
+  useEffect(() => {
+    if (user && !isUserLoading) {
+      // Direct users to onboarding for their first journey, or chat if they are returning
+      // For this MVP, we always start at onboarding which handles the profile check
+      router.push("/app/onboarding")
+    }
+  }, [user, isUserLoading, router])
 
   const handleGuestAccess = () => {
     setLoading(true)
     initiateAnonymousSignIn(auth)
     toast({
-      title: "Welcome, Guest!",
-      description: "Chat with Keylo for free. Temporary session started.",
+      title: "Starting guest session...",
+      description: "Welcome! I'm getting things ready for you.",
     })
-    // Transition happens via onAuthStateChanged in Provider
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     
@@ -65,9 +76,10 @@ export function AuthForm({ type }: AuthFormProps) {
         <Button 
           onClick={handleGuestAccess}
           variant="secondary" 
+          disabled={loading}
           className="w-full h-14 rounded-2xl font-bold gap-2 text-lg shadow-lg hover:scale-[1.02] transition-transform"
         >
-          <UserCircle size={22} /> Continue as Guest
+          {loading ? <Loader2 className="animate-spin" /> : <><UserCircle size={22} /> Continue as Guest</>}
         </Button>
         
         <div className="grid grid-cols-2 gap-4">
