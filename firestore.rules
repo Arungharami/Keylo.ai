@@ -1,0 +1,184 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * KEYLO.AI SECURITY RULES
+     *
+     * CORE PHILOSOPHY:
+     * This ruleset enforces a strict user-ownership model. Every piece of user-generated data, 
+     * from chat history to AI memory, is architecturally nested under the user's unique 
+     * identity path. This ensures that authorization is tied directly to authentication 
+     * state and path wildcards, providing a high degree of privacy and performance.
+     *
+     * DATA STRUCTURE:
+     * All private user data is located at /users/{userId}/.... This includes:
+     * - Profile details and preferences
+     * - Subscription status and usage metrics
+     * - Conversations and their constituent messages
+     * - AI-generated long-term memory and context
+     *
+     * KEY SECURITY DECISIONS:
+     * - Path-Based Authorization: We use the {userId} wildcard in the path to determine 
+     *   ownership. This avoids expensive 'get()' calls to check who owns a document.
+     * - Prototyping Flexibility: While ownership is strictly enforced, the specific 
+     *   schema (fields and types) is left flexible to allow for rapid UI/UX iteration.
+     * - Write Protection: 'if true' is NEVER used for write operations. Every create, 
+     *   update, or delete must be performed by the authenticated owner.
+     * - Analytics Segregation: App events are tracked in a top-level collection that 
+     *   allows for client-side creation (to track interactions) but prevents listing 
+     *   or modification by end-users.
+     *
+     * DENORMALIZATION FOR AUTHORIZATION:
+     * To support efficient rule evaluation, the 'userId' is consistently used in paths 
+     * and as a document identifier where appropriate. This allows for direct equality 
+     * checks between 'request.auth.uid' and the database structure.
+     */
+
+    // --- Global Helper Functions ---
+
+    /**
+     * @description Checks if a user is authenticated with Firebase.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user matches the provided ID.
+     * @param userId The ID to compare against the current auth UID.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Combines an ownership check with an existence check.
+     * Useful for update and delete operations to prevent modifying non-existent data.
+     */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    /**
+     * @description Validates that a field is immutable during an update.
+     */
+    function isImmutable(fieldName) {
+      return request.resource.data[fieldName] == resource.data[fieldName];
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for the root user document.
+     * @path /users/{userId}
+     * @allow get, list, update: (isOwner(userId))
+     * @allow create: (isOwner(userId) && request.resource.data.id == userId)
+     * @deny create, update, delete: (mismatched UID)
+     * @principle Validates that users can only create and manage their own identity document.
+     */
+    match /users/{userId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && isImmutable('id');
+      allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Rules for user-specific profile details.
+       * @path /users/{userId}/profile
+       * @allow get, list, create, update: (isOwner(userId))
+       * @deny delete: (explicitly denied)
+       * @principle Ensures profile data is private and only manageable by the user.
+       */
+      match /profile {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if false;
+      }
+
+      /**
+       * @description Rules for user subscriptions.
+       * @path /users/{userId}/subscriptions/{subscriptionId}
+       * @allow get, list: (isOwner(userId))
+       * @allow create, update, delete: (isOwner(userId)) - Prototyping Mode: Allow client-side creation.
+       * @deny all: (not signed in or mismatched owner)
+       * @principle Enforces path-based ownership for subscription records.
+       */
+      match /subscriptions/{subscriptionId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
+      }
+
+      /**
+       * @description Rules for tracking message usage and premium status.
+       * @path /users/{userId}/usage
+       * @allow get, list, create, update: (isOwner(userId))
+       * @deny delete: (usage history should be preserved)
+       * @principle Protects usage metrics while allowing the owner to update counts.
+       */
+      match /usage {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if false;
+      }
+
+      /**
+       * @description Rules for individual chat sessions.
+       * @path /users/{userId}/conversations/{conversationId}
+       * @allow get, list, create, update, delete: (isOwner(userId))
+       * @principle Enforces strict private access to personal chat sessions.
+       */
+      match /conversations/{conversationId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
+
+        /**
+         * @description Rules for messages within a conversation.
+         * @path /users/{userId}/conversations/{conversationId}/messages/{messageId}
+         * @allow get, list, create, update, delete: (isOwner(userId))
+         * @principle Hierarchical ownership ensures only the conversation owner can manage messages.
+         */
+        match /messages/{messageId} {
+          allow get, list: if isOwner(userId);
+          allow create: if isOwner(userId);
+          allow update: if isExistingOwner(userId);
+          allow delete: if isExistingOwner(userId);
+        }
+      }
+
+      /**
+       * @description Rules for the AI's long-term memory of a specific user.
+       * @path /users/{userId}/aiChatMemory
+       * @allow get, list, create, update: (isOwner(userId))
+       * @deny delete: (memory should persist)
+       * @principle Secures sensitive contextual data learned by Keylo.
+       */
+      match /aiChatMemory {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if false;
+      }
+    }
+
+    /**
+     * @description Rules for application-wide event logging.
+     * @path /appEvents/{eventId}
+     * @allow create: (isSignedIn())
+     * @deny get, list, update, delete: (users cannot read or modify analytic logs)
+     * @principle Supports "Write-Only" behavior for client-side event tracking.
+     */
+    match /appEvents/{eventId} {
+      allow get, list: if false;
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

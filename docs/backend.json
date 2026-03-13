@@ -1,0 +1,604 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user account in Keylo.ai, including both registered and guest users.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address, used for authentication and contact. Null for guest users.",
+          "format": "email"
+        },
+        "authProvider": {
+          "type": "string",
+          "description": "The authentication provider used by the user (e.g., 'email', 'google', 'apple', 'guest').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user account was created.",
+          "format": "date-time"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "description": "Timestamp of the user's last login or guest session start.",
+          "format": "date-time"
+        },
+        "isGuest": {
+          "type": "boolean",
+          "description": "Indicates if the user is currently operating as a guest without a registered account."
+        },
+        "guestSessionExpiresAt": {
+          "type": "string",
+          "description": "Timestamp when a guest user's temporary session is set to expire, limiting free usage.",
+          "format": "date-time"
+        },
+        "profileId": {
+          "type": "string",
+          "description": "Reference to the associated UserProfile entity. (Relationship: User 1:1 UserProfile)"
+        }
+      },
+      "required": [
+        "id",
+        "authProvider",
+        "createdAt",
+        "lastLoginAt",
+        "isGuest",
+        "profileId"
+      ]
+    },
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Stores user-specific profile details and preferences.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the associated User entity. (Relationship: User 1:1 UserProfile)"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's chosen display name for the app."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "URL to the user's profile avatar image.",
+          "format": "uri"
+        },
+        "onboardingCompleted": {
+          "type": "boolean",
+          "description": "Indicates whether the user has completed the initial onboarding flow."
+        },
+        "preferredConversationStyle": {
+          "type": "string",
+          "description": "The user's preferred conversational style or mode for the AI companion (e.g., 'Friendly', 'Reflection', 'Creative Spark').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "interests": {
+          "type": "array",
+          "description": "A list of topics or interests provided by the user during onboarding, used for AI personalization.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last update to the user profile.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "onboardingCompleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Subscription": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Subscription",
+      "type": "object",
+      "description": "Manages a user's premium subscription details and status via Stripe.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Subscription entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the associated User entity. (Relationship: User 1:N Subscription)"
+        },
+        "stripeCustomerId": {
+          "type": "string",
+          "description": "The customer ID assigned by Stripe for billing management."
+        },
+        "stripeSubscriptionId": {
+          "type": "string",
+          "description": "The subscription ID assigned by Stripe for the active plan."
+        },
+        "planType": {
+          "type": "string",
+          "description": "The type of subscription plan (e.g., 'free', 'monthly', 'yearly', 'trial').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the subscription (e.g., 'active', 'inactive', 'canceled', 'trialing', 'past_due', 'unpaid').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "currentPeriodEnd": {
+          "type": "string",
+          "description": "Timestamp when the current billing period ends.",
+          "format": "date-time"
+        },
+        "trialEndsAt": {
+          "type": "string",
+          "description": "Timestamp when the subscription trial period ends, if applicable.",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the subscription record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last update to the subscription record.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "planType",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Usage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Usage",
+      "type": "object",
+      "description": "Tracks a user's message usage for free limits and premium feature access.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Usage entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the associated User entity. (Relationship: User 1:1 Usage)"
+        },
+        "messageCountToday": {
+          "type": "number",
+          "description": "The number of messages sent by the user within the current 24-hour period."
+        },
+        "messageCountTotal": {
+          "type": "number",
+          "description": "The total number of messages sent by the user since account creation or last reset."
+        },
+        "freeMessageLimitTotal": {
+          "type": "number",
+          "description": "The total cumulative message limit for free users."
+        },
+        "dailyMessageLimit": {
+          "type": "number",
+          "description": "The daily message limit for free users."
+        },
+        "lastDailyResetAt": {
+          "type": "string",
+          "description": "Timestamp of the last daily message count reset.",
+          "format": "date-time"
+        },
+        "isPremiumUser": {
+          "type": "boolean",
+          "description": "Flag indicating if the user has an active premium subscription, allowing unlimited usage."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the usage record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last update to the usage record."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "messageCountToday",
+        "messageCountTotal",
+        "freeMessageLimitTotal",
+        "dailyMessageLimit",
+        "lastDailyResetAt",
+        "isPremiumUser",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Conversation": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Conversation",
+      "type": "object",
+      "description": "Represents a single chat session between a user and the AI companion.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Conversation entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns this conversation. (Relationship: User 1:N Conversation)"
+        },
+        "title": {
+          "type": "string",
+          "description": "An auto-generated or user-edited title for the conversation."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the conversation was initiated.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last message or update within the conversation."
+        },
+        "mode": {
+          "type": "string",
+          "description": "The operational mode or persona for the AI in this conversation (e.g., 'General', 'Reflection', 'Creative Spark').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isArchived": {
+          "type": "boolean",
+          "description": "Flag indicating if the conversation has been soft-deleted or archived by the user."
+        },
+        "lastMessagePreview": {
+          "type": "string",
+          "description": "A short snippet of the most recent message in the conversation, used for display in chat history."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "title",
+        "createdAt",
+        "updatedAt",
+        "mode",
+        "isArchived"
+      ]
+    },
+    "Message": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Message",
+      "type": "object",
+      "description": "Represents an individual message within a conversation, sent by either the user or the AI.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Message entity."
+        },
+        "conversationId": {
+          "type": "string",
+          "description": "Reference to the Conversation this message belongs to. (Relationship: Conversation 1:N Message)"
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Identifier of the sender. This is the userId if sent by a user, or a special identifier for the AI."
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the sender (e.g., 'user', 'assistant').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "content": {
+          "type": "string",
+          "description": "The text content of the message."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp when the message was sent.",
+          "format": "date-time"
+        },
+        "sentimentScore": {
+          "type": "number",
+          "description": "An optional numerical score representing the detected sentiment of the message content."
+        },
+        "isLiked": {
+          "type": "boolean",
+          "description": "Flag indicating if the user has 'liked' this specific AI message, providing feedback for AI improvement and gamification."
+        },
+        "isPremiumFeatureRequest": {
+          "type": "boolean",
+          "description": "Flag indicating if this message contained a request for a premium AI feature."
+        }
+      },
+      "required": [
+        "id",
+        "conversationId",
+        "senderId",
+        "role",
+        "content",
+        "timestamp",
+        "isLiked",
+        "isPremiumFeatureRequest"
+      ]
+    },
+    "AIChatMemory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AIChatMemory",
+      "type": "object",
+      "description": "Stores long-term memory and contextual information for the AI companion specific to each user, enabling personalized conversations.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AIChatMemory entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User this memory belongs to. (Relationship: User 1:1 AIChatMemory)"
+        },
+        "facts": {
+          "type": "array",
+          "description": "An array of structured facts or key details about the user learned over time.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "preferences": {
+          "type": "array",
+          "description": "An array of AI's inferred preferences for the user (e.g., preferred tone, topics, interaction style).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "summaries": {
+          "type": "array",
+          "description": "An array of summaries of past conversations, used for context retention.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last update to the AI's memory for this user.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "facts",
+        "preferences",
+        "summaries",
+        "updatedAt"
+      ]
+    },
+    "AppEvent": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AppEvent",
+      "type": "object",
+      "description": "Records various application events for analytics, attribution, and user behavior tracking.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AppEvent entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who triggered the event. Can be null for events triggered by guest users or public pages. (Relationship: User 1:N AppEvent)"
+        },
+        "eventType": {
+          "type": "string",
+          "description": "The specific type of event (e.g., 'landing_view', 'signup_completed', 'checkout_completed', 'message_sent', 'free_limit_reached')."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp when the event occurred.",
+          "format": "date-time"
+        },
+        "source": {
+          "type": "string",
+          "description": "The source or origin of the event (e.g., 'facebook_ad', 'google_search', 'organic', 'app_internal')."
+        },
+        "metadata": {
+          "type": "array",
+          "description": "An array of additional key-value pairs providing context or details specific to the event (e.g., UTM parameters, conversationId, planType).",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "eventType",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores core user authentication and session details. The `userId` wildcard corresponds to `request.auth.uid`, ensuring path-based ownership for secure access.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user, matching Firebase Authentication's UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "users/{userId}/profile",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "User-specific profile details and preferences. Nested under `/users/{userId}` for direct ownership and authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user who owns this profile."
+            }
+          ]
+        }
+      },
+      {
+        "path": "users/{userId}/subscriptions/{subscriptionId}",
+        "definition": {
+          "entityName": "Subscription",
+          "schema": {
+            "$ref": "#/backend/entities/Subscription"
+          },
+          "description": "Manages a user's premium subscription details. Nested under `/users/{userId}` for direct ownership. The `isPremiumUser` field in the `/users/{userId}/usage` document will be denormalized from this data for efficient rule checks.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user who owns this subscription."
+            },
+            {
+              "name": "subscriptionId",
+              "description": "The unique ID of the subscription record, often linked to Stripe."
+            }
+          ]
+        }
+      },
+      {
+        "path": "users/{userId}/usage",
+        "definition": {
+          "entityName": "Usage",
+          "schema": {
+            "$ref": "#/backend/entities/Usage"
+          },
+          "description": "Tracks user message usage and premium status. Nested under `/users/{userId}`. The `isPremiumUser` field is denormalized from the active subscription status for authorization independence and efficient rule checks.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user whose usage is being tracked."
+            }
+          ]
+        }
+      },
+      {
+        "path": "users/{userId}/conversations/{conversationId}",
+        "definition": {
+          "entityName": "Conversation",
+          "schema": {
+            "$ref": "#/backend/entities/Conversation"
+          },
+          "description": "Represents an individual chat session owned by a user. Nested under `/users/{userId}` for direct ownership, simplifying access control and enabling secure `list` operations.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user who owns this conversation."
+            },
+            {
+              "name": "conversationId",
+              "description": "The unique ID for this specific chat conversation."
+            }
+          ]
+        }
+      },
+      {
+        "path": "users/{userId}/conversations/{conversationId}/messages/{messageId}",
+        "definition": {
+          "entityName": "Message",
+          "schema": {
+            "$ref": "#/backend/entities/Message"
+          },
+          "description": "Individual messages within a conversation. Nested hierarchically, inheriting `userId` from the parent path for authorization independence and avoiding `get()` calls to the parent conversation for ownership checks.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user who owns the parent conversation."
+            },
+            {
+              "name": "conversationId",
+              "description": "The unique ID of the parent conversation."
+            },
+            {
+              "name": "messageId",
+              "description": "The unique ID for this specific message."
+            }
+          ]
+        }
+      },
+      {
+        "path": "users/{userId}/aiChatMemory",
+        "definition": {
+          "entityName": "AIChatMemory",
+          "schema": {
+            "$ref": "#/backend/entities/AIChatMemory"
+          },
+          "description": "Stores long-term AI memory and context for a specific user. Nested under `/users/{userId}` for direct ownership and secure, private access.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user whose AI chat memory is stored."
+            }
+          ]
+        }
+      },
+      {
+        "path": "appEvents/{eventId}",
+        "definition": {
+          "entityName": "AppEvent",
+          "schema": {
+            "$ref": "#/backend/entities/AppEvent"
+          },
+          "description": "Records application events for analytics. Writes are typically server-side, ensuring data integrity. The `userId` field inside the document allows filtering by user if specific user event history is needed for analysis, but primary access is for backend analytics.",
+          "params": [
+            {
+              "name": "eventId",
+              "description": "The unique ID for this specific application event."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The recommended Firestore structure for Keylo.ai prioritizes Authorization Independence, Structural Segregation, and consistent Access Modeling to ensure robust security rules and debuggability. All user-specific data, including profiles, subscriptions, usage, conversations, messages, and AI memory, is strictly nested under a top-level `/users/{userId}` collection. This strategy is critical for Authorization Independence: by embedding the `userId` directly into the path (`/users/{userId}/profile`, `/users/{userId}/conversations/{conversationId}`, etc.), security rules can directly compare `request.auth.uid` with the `{userId}` wildcard in the path, eliminating the need for expensive and complex `get()` calls to parent documents to ascertain ownership or permissions. This enables atomic operations (transactions/batches) without breaking security rules and greatly simplifies rule logic, moving complexity from runtime checks to structural design.\n\nStructural Segregation is applied by dedicating specific subcollections for different types of user data (e.g., `profile`, `subscriptions`, `usage`, `conversations`). This ensures that all documents within a given collection or subcollection share the same security posture. For instance, `conversations` are distinct from `subscriptions` in terms of access patterns, but both are clearly owned by the `userId` in their path. The `AppEvent` collection is a top-level collection, representing application-wide analytics data which typically has different write permissions (server-side only) and read permissions (admin/backend or limited user-specific access for their own events), thus segregating it from directly user-owned data.\n\nRegarding QAPs (Rules are not Filters), this structure inherently supports secure `list` operations. For any subcollection under `/users/{userId}`, a query like `db.collection('users').doc(userId).collection('conversations').where('userId', '==', userId)` or simply `db.collection('users').doc(userId).collection('conversations')` can be secured by a rule `allow list: if request.auth.uid == userId;`. Because the `userId` is part of the path, the rule directly enforces that only the authenticated user can list their own data, preventing accidental or malicious data exposure through wide-ranging queries. Specifically, the `Usage` document at `/users/{userId}/usage` contains an `isPremiumUser` field, which is denormalized from the `Subscription` status. This denormalization is crucial for Authorization Independence as it allows quick and efficient premium feature gating in rules (e.g., `allow write: if request.auth.uid == userId && get(/databases/$(database)/documents/users/$(userId)/usage).data.isPremiumUser;`) without needing to fetch the full `Subscription` document, further simplifying rules and ensuring QAPs are met."
+  }
+}
