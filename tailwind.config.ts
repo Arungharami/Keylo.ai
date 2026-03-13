@@ -92,12 +92,22 @@ export default {
         'pulse-glow': {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.6' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        breathe: {
+          '0%, 100%': { transform: 'scale(1)', opacity: '0.8' },
+          '50%': { transform: 'scale(1.05)', opacity: '1' },
         }
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'pulse-glow': 'pulse-glow 3s ease-in-out infinite',
+        float: 'float 6s ease-in-out infinite',
+        breathe: 'breathe 8s ease-in-out infinite',
       },
     },
   },

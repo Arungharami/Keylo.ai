@@ -12,98 +12,132 @@ import {
   Sparkles,
   Trash2,
   Menu,
-  X
+  X,
+  UserCircle,
+  Gem
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
+import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase"
+import { doc, deleteDoc, getAuth, signOut } from "firebase/firestore"
 
 export function AppSidebar() {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
+  const { user } = useUser()
+  const db = useFirestore()
+  const isGuest = user?.isAnonymous || false
 
-  // Mock chat history
+  const usageRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid, 'usage', 'stats') : null, [user, db])
+  const { data: usage } = useDoc(usageRef)
+  const isPremium = usage?.isPremiumUser || false
+
+  // Mock chat history - in a real app this would be a collection
   const history = [
     { id: "1", title: "Morning Reflection" },
-    { id: "2", title: "Business Ideas" },
-    { id: "3", title: "Quick Vent Session" },
+    { id: "2", title: "Creative Spark" },
   ]
 
   const navItems = [
-    { name: "New Chat", icon: Plus, href: "/app/chat", premium: false },
+    { name: "My Chat", icon: MessageSquare, href: "/app/chat", premium: false },
     { name: "Account", icon: User, href: "/app/account", premium: false },
     { name: "Billing", icon: CreditCard, href: "/app/billing", premium: false },
   ]
+
+  const handleLogout = async () => {
+    const auth = getAuth()
+    await signOut(auth)
+    window.location.href = "/"
+  }
 
   return (
     <>
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-card border border-white/10 shadow-lg text-foreground"
+        className="md:hidden fixed top-4 left-4 z-50 p-3 rounded-2xl glass border-white/10 shadow-2xl text-foreground"
       >
         {isOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-40 w-72 bg-card border-r border-white/5 flex flex-col transition-transform duration-300 md:translate-x-0",
+        "fixed inset-y-0 left-0 z-40 w-72 bg-card/95 backdrop-blur-xl border-r border-white/5 flex flex-col transition-transform duration-500 ease-in-out md:translate-x-0",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="p-6 border-b border-white/5 flex items-center justify-between">
+        <div className="p-8 border-b border-white/5 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg premium-gradient flex items-center justify-center text-white shadow-lg group-hover:scale-105 transition-transform">
-              <Sparkles size={18} />
+            <div className="w-10 h-10 rounded-xl premium-gradient flex items-center justify-center text-white shadow-lg group-hover:rotate-12 transition-transform">
+              <Sparkles size={20} />
             </div>
-            <span className="font-headline font-bold text-xl tracking-tight">Keylo.ai</span>
+            <span className="font-headline font-bold text-2xl tracking-tighter">Keylo</span>
           </Link>
-          <div className="px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-bold text-primary uppercase tracking-widest">
-            Free
+          <div className={cn(
+            "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border",
+            isPremium ? "bg-secondary/10 border-secondary/20 text-secondary" : "bg-primary/10 border-primary/20 text-primary"
+          )}>
+            {isPremium ? "PRO" : (isGuest ? "GUEST" : "FREE")}
           </div>
         </div>
 
-        <div className="p-4">
-          <Button asChild className="w-full h-12 premium-gradient shadow-lg font-bold gap-2">
-            <Link href="/app/chat"><Plus size={18} /> New Chat</Link>
+        <div className="p-6">
+          <Button asChild className="w-full h-14 premium-gradient shadow-2xl font-bold gap-2 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all">
+            <Link href="/app/chat"><Plus size={20} strokeWidth={3} /> Let's Chat</Link>
           </Button>
         </div>
 
-        <div className="flex-grow overflow-y-auto px-2 py-4 space-y-6">
-          <div className="space-y-1">
-            <h4 className="px-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">History</h4>
+        <div className="flex-grow overflow-y-auto px-4 py-4 space-y-8">
+          <div className="space-y-2">
+            <h4 className="px-4 text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Past Sessions</h4>
             {history.map((chat) => (
               <Link 
                 key={chat.id} 
                 href={`/app/chat/${chat.id}`}
                 className={cn(
-                  "group flex items-center justify-between p-3 rounded-xl transition-colors",
+                  "group flex items-center justify-between p-4 rounded-2xl transition-all duration-300",
                   pathname.includes(chat.id) ? "bg-primary/10 text-primary" : "hover:bg-white/5 text-muted-foreground hover:text-foreground"
                 )}
               >
                 <div className="flex items-center gap-3 overflow-hidden">
-                  <MessageSquare size={16} />
-                  <span className="text-sm truncate font-medium">{chat.title}</span>
+                  <MessageSquare size={18} className={pathname.includes(chat.id) ? "text-primary" : ""} />
+                  <span className="text-sm truncate font-bold">{chat.title}</span>
                 </div>
                 <button className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-all">
-                  <Trash2 size={14} />
+                  <Trash2 size={16} />
                 </button>
               </Link>
             ))}
           </div>
         </div>
 
-        <div className="p-4 border-t border-white/5 space-y-2">
+        <div className="p-6 border-t border-white/5 space-y-3 bg-white/[0.02]">
           {navItems.map((item) => (
             <Button key={item.name} asChild variant="ghost" className={cn(
-              "w-full justify-start h-11 font-medium gap-3 rounded-xl",
-              pathname === item.href ? "bg-white/5 text-foreground" : "text-muted-foreground hover:text-foreground"
+              "w-full justify-start h-12 font-bold gap-4 rounded-2xl transition-all",
+              pathname === item.href ? "bg-white/5 text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
             )}>
               <Link href={item.href}>
-                <item.icon size={18} /> {item.name}
+                <item.icon size={20} /> {item.name}
               </Link>
             </Button>
           ))}
-          <Button variant="ghost" className="w-full justify-start h-11 font-medium gap-3 rounded-xl text-muted-foreground hover:text-destructive">
-            <LogOut size={18} /> Logout
+          
+          {isPremium && (
+            <div className="p-4 rounded-2xl bg-secondary/5 border border-secondary/10 mt-4">
+              <div className="flex items-center gap-2 text-secondary mb-1">
+                <Gem size={14} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Premium Features</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-tight">Long-term memory & Creative tools active.</p>
+            </div>
+          )}
+
+          <Button 
+            variant="ghost" 
+            onClick={handleLogout}
+            className="w-full justify-start h-12 font-bold gap-4 rounded-2xl text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+          >
+            <LogOut size={20} /> Logout
           </Button>
         </div>
       </aside>

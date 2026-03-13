@@ -5,9 +5,11 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Sparkles, Github, Chrome, Eye, EyeOff, Loader2 } from "lucide-react"
+import { Sparkles, Github, Chrome, Eye, EyeOff, Loader2, UserCircle } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/firebase"
+import { initiateEmailSignIn, initiateEmailSignUp, initiateAnonymousSignIn } from "@/firebase/non-blocking-login"
 
 interface AuthFormProps {
   type: "login" | "signup"
@@ -16,25 +18,34 @@ interface AuthFormProps {
 export function AuthForm({ type }: AuthFormProps) {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const { toast } = useToast()
+  const auth = useAuth()
+
+  const handleGuestAccess = () => {
+    setLoading(true)
+    initiateAnonymousSignIn(auth)
+    toast({
+      title: "Welcome, Guest!",
+      description: "Chat with Keylo for free. Temporary session started.",
+    })
+    // Transition happens via onAuthStateChanged in Provider
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     
-    // Simulate auth
-    setTimeout(() => {
-      setLoading(false)
-      toast({
-        title: type === "login" ? "Welcome back!" : "Account created!",
-        description: "Redirecting you to the app...",
-      })
-      window.location.href = "/app/onboarding"
-    }, 1500)
+    if (type === "signup") {
+      initiateEmailSignUp(auth, email, password)
+    } else {
+      initiateEmailSignIn(auth, email, password)
+    }
   }
 
   return (
-    <div className="w-full max-w-md space-y-8 glass p-8 md:p-12 rounded-[2.5rem] border-white/10 shadow-2xl">
+    <div className="w-full max-w-md space-y-8 glass p-8 md:p-12 rounded-[2.5rem] border-white/10 shadow-2xl animate-in fade-in zoom-in duration-500">
       <div className="text-center space-y-2">
         <Link href="/" className="inline-flex items-center gap-2 mb-4 group">
           <div className="w-10 h-10 rounded-xl premium-gradient flex items-center justify-center text-white shadow-lg group-hover:scale-105 transition-transform">
@@ -50,13 +61,23 @@ export function AuthForm({ type }: AuthFormProps) {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Button variant="outline" className="h-12 glass border-white/10 hover:bg-white/5 transition-colors gap-2">
-          <Chrome size={18} /> Google
+      <div className="space-y-4">
+        <Button 
+          onClick={handleGuestAccess}
+          variant="secondary" 
+          className="w-full h-14 rounded-2xl font-bold gap-2 text-lg shadow-lg hover:scale-[1.02] transition-transform"
+        >
+          <UserCircle size={22} /> Continue as Guest
         </Button>
-        <Button variant="outline" className="h-12 glass border-white/10 hover:bg-white/5 transition-colors gap-2">
-          <Github size={18} /> Github
-        </Button>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <Button variant="outline" className="h-12 glass border-white/10 hover:bg-white/5 transition-colors gap-2">
+            <Chrome size={18} /> Google
+          </Button>
+          <Button variant="outline" className="h-12 glass border-white/10 hover:bg-white/5 transition-colors gap-2">
+            <Github size={18} /> Github
+          </Button>
+        </div>
       </div>
 
       <div className="relative">
@@ -67,7 +88,15 @@ export function AuthForm({ type }: AuthFormProps) {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" placeholder="you@example.com" required className="h-12 bg-white/5 border-white/10 focus:ring-primary" />
+          <Input 
+            id="email" 
+            type="email" 
+            placeholder="you@example.com" 
+            required 
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="h-12 bg-white/5 border-white/10 focus:ring-primary rounded-xl" 
+          />
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -81,7 +110,9 @@ export function AuthForm({ type }: AuthFormProps) {
               id="password" 
               type={showPassword ? "text" : "password"} 
               required 
-              className="h-12 bg-white/5 border-white/10 focus:ring-primary pr-12" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-12 bg-white/5 border-white/10 focus:ring-primary pr-12 rounded-xl" 
             />
             <button 
               type="button" 
@@ -93,7 +124,7 @@ export function AuthForm({ type }: AuthFormProps) {
           </div>
         </div>
 
-        <Button type="submit" disabled={loading} className="w-full h-14 premium-gradient text-lg font-bold shadow-lg">
+        <Button type="submit" disabled={loading} className="w-full h-14 premium-gradient text-lg font-bold shadow-lg rounded-2xl hover:scale-[1.02] transition-transform">
           {loading ? <Loader2 className="animate-spin" /> : (type === "login" ? "Sign In" : "Get Started")}
         </Button>
       </form>
