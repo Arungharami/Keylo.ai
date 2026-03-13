@@ -20,14 +20,16 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase"
-import { doc, deleteDoc, getAuth, signOut } from "firebase/firestore"
+import { useUser, useFirestore, useDoc, useMemoFirebase, useAuth } from "@/firebase"
+import { doc, deleteDoc } from "firebase/firestore"
+import { signOut } from "firebase/auth"
 
 export function AppSidebar() {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const { user } = useUser()
   const db = useFirestore()
+  const auth = useAuth()
   const isGuest = user?.isAnonymous || false
 
   const usageRef = useMemoFirebase(() => user ? doc(db, 'users', user.uid, 'usage', 'stats') : null, [user, db])
@@ -47,9 +49,12 @@ export function AppSidebar() {
   ]
 
   const handleLogout = async () => {
-    const auth = getAuth()
-    await signOut(auth)
-    window.location.href = "/"
+    try {
+      await signOut(auth)
+      window.location.href = "/"
+    } catch (error) {
+      console.error("Logout failed:", error)
+    }
   }
 
   return (
